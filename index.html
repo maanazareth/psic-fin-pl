@@ -37,6 +37,19 @@ select.flt{font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #3
 .fb.fbok{background:rgba(16,185,129,.1);color:#6ee7b7;border:1px solid rgba(16,185,129,.25)}
 .fb.fbno{background:rgba(239,68,68,.08);color:#fca5a5;border:1px solid rgba(239,68,68,.2)}
 .empty{color:#475569;font-size:14px;text-align:center;padding:2.5rem 0}
+.btn-reset{font-size:12px;padding:6px 14px;border-radius:20px;border:1px solid #7f1d1d;background:transparent;color:#f87171;cursor:pointer;transition:all .15s;margin-left:auto}
+.btn-reset:hover{background:#7f1d1d;color:#fecaca}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center}
+.modal-bg.show{display:flex}
+.modal{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:1.5rem;max-width:320px;width:90%;text-align:center}
+.modal h2{font-size:16px;color:#f1f5f9;margin-bottom:8px}
+.modal p{font-size:13px;color:#94a3b8;margin-bottom:1.25rem;line-height:1.6}
+.modal-btns{display:flex;gap:8px;justify-content:center}
+.mbtn{font-size:13px;padding:8px 20px;border-radius:8px;cursor:pointer;border:1px solid #334155;transition:all .15s}
+.mbtn-cancel{background:transparent;color:#64748b}
+.mbtn-cancel:hover{background:#334155;color:#e2e8f0}
+.mbtn-confirm{background:#dc2626;color:#fff;border-color:#dc2626}
+.mbtn-confirm:hover{background:#b91c1c}
 </style>
 </head>
 <body>
@@ -56,9 +69,21 @@ select.flt{font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #3
   <button class="tb" id="btn-pend">Pendentes</button>
   <button class="tb" id="btn-err">Revisar erros</button>
   <select class="flt" id="tsel"><option value="">Todos os temas</option></select>
+  <button class="btn-reset" id="btn-reset">&#8635; Resetar</button>
 </div>
 
 <div id="ql"></div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h2>Resetar progresso?</h2>
+    <p>Todas as respostas serao apagadas e o percurso comecara do zero. Esta acao nao pode ser desfeita.</p>
+    <div class="modal-btns">
+      <button class="mbtn mbtn-cancel" id="modal-cancel">Cancelar</button>
+      <button class="mbtn mbtn-confirm" id="modal-confirm">Sim, resetar</button>
+    </div>
+  </div>
+</div>
 
 <script>
 var QS=[
@@ -114,10 +139,24 @@ var QS=[
   {id:50,tp:"Aplicação integrada",c:"#fb7185",text:"Em qual situação o planejador financeiro estaria EXTRAPOLANDO sua função, exigindo encaminhamento a profissional de saúde mental?",opts:["Explorar as crenças e scripts financeiros do cliente herdados da família","Validar as emoções do cliente durante uma crise de mercado e oferecer suporte empático","Identificar que o cliente usa gastos compulsivos como principal mecanismo de enfrentamento de ansiedade severa — sintoma de transtorno de ansiedade generalizada não tratado","Usar técnicas de escuta ativa e entrevista motivacional para ajudar o cliente a identificar suas metas financeiras"],ans:2,exp:"O planejador está equipado para trabalhar crenças sobre dinheiro, emoções relacionadas a finanças e motivação para mudança. Mas quando os sintomas apontam para um transtorno mental não tratado (ansiedade generalizada, depressão, TOC, jogo patológico), o encaminhamento a profissional de saúde mental é necessário e ético — mantendo o trabalho financeiro em paralelo com o terapeuta."}
 ];
 
+var STORAGE_KEY='cfp_m8_state';
 var state={};
 var curView='all', curTopic='';
 
+function saveState(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+function loadState(){
+  try{
+    var raw=localStorage.getItem(STORAGE_KEY);
+    if(raw){ state=JSON.parse(raw); }
+  }catch(e){ state={}; }
+}
+
 document.addEventListener('DOMContentLoaded', function(){
+  loadState();
+
   var topics=[...new Set(QS.map(function(q){return q.tp;}))];
   var tsel=document.getElementById('tsel');
   topics.forEach(function(t){
@@ -131,6 +170,28 @@ document.addEventListener('DOMContentLoaded', function(){
   document.getElementById('btn-pend').addEventListener('click', function(){ setView('pend',this); });
   document.getElementById('btn-err').addEventListener('click', function(){ setView('err',this); });
 
+  document.getElementById('btn-reset').addEventListener('click', function(){
+    document.getElementById('modal').classList.add('show');
+  });
+  document.getElementById('modal-cancel').addEventListener('click', function(){
+    document.getElementById('modal').classList.remove('show');
+  });
+  document.getElementById('modal-confirm').addEventListener('click', function(){
+    state={};
+    saveState();
+    document.getElementById('modal').classList.remove('show');
+    curView='all'; curTopic='';
+    document.querySelectorAll('.tb').forEach(function(b){ b.classList.remove('on'); });
+    document.getElementById('btn-all').classList.add('on');
+    document.getElementById('tsel').value='';
+    updateStats();
+    render();
+  });
+  document.getElementById('modal').addEventListener('click', function(e){
+    if(e.target===this) this.classList.remove('show');
+  });
+
+  updateStats();
   render();
 });
 
@@ -242,6 +303,7 @@ function pick(qid, sel){
   if(!q) return;
   var ok=sel===q.ans;
   state[qid]={sel:sel, ok:ok};
+  saveState();
 
   var btns=document.querySelectorAll('#O'+qid+' .op');
   btns.forEach(function(btn, i){
